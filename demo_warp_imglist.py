@@ -18,6 +18,15 @@ from utils.utils import InputPadder
 
 DEVICE = 'cuda'
 
+def create_raft(args):
+    model = torch.nn.DataParallel(RAFT(args))
+    model.load_state_dict(torch.load(args.model))
+
+    model = model.module
+    model.to(DEVICE)
+    model.eval()
+    return model
+
 def load_image(imfile):
     img = np.array(Image.open(imfile)).astype(np.uint8)
     img = torch.from_numpy(img).permute(2, 0, 1).float()
@@ -56,71 +65,49 @@ def warp(x, flo):
     return output
 
 
-def viz(img, flo):
-    img = img[0].permute(1,2,0).cpu().numpy()
-    flo = flo[0].permute(1,2,0).cpu().numpy()
-    
-    # map flow to rgb image
-    flo = flow_viz.flow_to_image(flo)
-    img_flo = np.concatenate([img, flo], axis=0)
-
-    import matplotlib.pyplot as plt
-    plt.imshow(img_flo / 255.0)
-    plt.show()
-
-    # cv2.imshow('image', img_flo[:, :, [2,1,0]]/255.0)
-    # cv2.waitKey()
-
-
-def viz_warp(img1, img2, flo):
+def demo_warp(img1, img2, flo):
     img2_warp = warp(img2, flo)
 
     img1 = img1[0].permute(1,2,0).cpu().numpy()
     img2 = img2[0].permute(1,2,0).cpu().numpy()
     img2_warp = img2_warp[0].permute(1,2,0).cpu().numpy()
     
-    # map flow to rgb image
-    img_concat = np.concatenate([img1, img2_warp, img2], axis=0)
-
-    import matplotlib.pyplot as plt
-    plt.imshow(img_concat / 255.0)
-    plt.show()
-
-    # cv2.imshow('image', img_flo[:, :, [2,1,0]]/255.0)
-    # cv2.waitKey()
+    return img2_warp
 
 
-def demo(args):
-    model = torch.nn.DataParallel(RAFT(args))
-    model.load_state_dict(torch.load(args.model))
-
-    model = model.module
-    model.to(DEVICE)
-    model.eval()
-
+def demo(model, imfile1, imfile2):
     with torch.no_grad():
-        imfile1 = args.path1
-        imfile2 = args.path2
 
         image1 = load_image(imfile1)
         image2 = load_image(imfile2)
+        assert image1.shape == image2.shape
+        _, _, h, w = image1.shape
 
         padder = InputPadder(image1.shape)
         image1, image2 = padder.pad(image1, image2)
 
         flow_low, flow_up = model(image1, image2, iters=20, test_mode=True)
-        viz_warp(image1, image2, flow_up)
+        image2_warp = demo_warp(image1, image2, flow_up)
+
+        # convert to opencv format for saving
+        image2_warp = (image2_warp).astype(np.uint8)
+        image2_warp = cv2.resize(image2_warp, (w, h))
+        image2_warp = cv2.cvtColor(image2_warp, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(imfile1.replace('.', '_warp.'), image2_warp)
 
 
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='models/raft-things.pth', help="restore checkpoint")
-    parser.add_argument('--path1', default='demo-frames/frame_0016.png', help="dataset for evaluation")
-    parser.add_argument('--path2', default='demo-frames/frame_0025.png', help="dataset for evaluation")
+    parser.add_argument('--pathlist', default=[['demo-frames/frame_0016.png', 'demo-frames/frame_0017.png'], ['demo-frames/frame_0017.png', 'demo-frames/frame_0018.png']], help="dataset for evaluation")
     parser.add_argument('--small', action='store_true', help='use small model')
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
     parser.add_argument('--alternate_corr', action='store_true', help='use efficent correlation implementation')
     args = parser.parse_args()
 
-    demo(args)
+    model = create_raft(args)
+
+    for source_path, target_path in args.pathlist:
+        print(source_path, target_path)
+        demo(model, source_path, target_path)

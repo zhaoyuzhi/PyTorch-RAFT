@@ -33,11 +33,11 @@ You can demo a trained model on a sequence of frames:
 python demo.py --model=models/raft-things.pth --path=demo-frames
 ```
 
-The default mode is forward warping, which is implemented by the following code:
+The default mode is backward warping, which is implemented by the following code:
 ```bash
 python demo_warp.py --model=models/raft-things.pth --path1=demo-frames/frame_0016.png --path2=demo-frames/frame_0017.png
 ```
-(i.e., it warps the PATH1 image to the position of PATH2 image)
+(i.e., it warps the PATH2 image to the position of PATH1 image)
 
 If you have a bunch of image pairs to warp, run the following code:
 ```bash
