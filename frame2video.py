@@ -55,10 +55,10 @@ if __name__ == '__main__':
 
     #readpath = './demo-BeachByDrone'
     #savepath = './source.mp4'
-    readpath = './result'
-    savepath = './result-YogaHut2.mp4'
+    readpath = './demo-imgs'
+    savepath = './result.mp4'
     
     fps = 30
-    size = (960, 536)
+    size = (960, 540)
 
     frame2video(readpath, savepath, fps, size)

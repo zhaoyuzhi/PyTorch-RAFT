@@ -52,7 +52,6 @@ def load_image(imfile):
     img = torch.from_numpy(img).permute(2, 0, 1).float()
     return img[None].to(DEVICE)
 
-
 def warp(x, flo):
     """
     warp an image/tensor (im2) back to im1, according to the optical flow
@@ -85,10 +84,21 @@ def warp(x, flo):
     return output
 
 
-def demo_warp(img1, flo):
-    img2_warp = warp(img1, flo)
-    img2_warp = img2_warp[0].permute(1,2,0).cpu().numpy()
-    return img2_warp
+def warp_cv2(x, flo):
+    """
+    warp an image/tensor according to the optical flow
+    x: [H, W, C] image/tensor
+    flo: [H, W, 2] flow
+    """
+    # calculate mat
+    w = int(x.shape[1])
+    h = int(x.shape[0])
+    flo = np.float32(flo)
+    y_coords, x_coords = np.mgrid[0:h, 0:w]
+    coords = np.float32(np.dstack([x_coords, y_coords]))
+    pixel_map = coords + flo
+    output = cv2.remap(x, pixel_map, None, cv2.INTER_LINEAR)
+    return output
 
 
 def demo(model, imfile1, imfile2):
@@ -120,8 +130,35 @@ def warp_folder(source_path, flow_list):
 
         for i in range(len(flow_list)):
             flow_up = flow_list[i]
-            image2_warp = demo_warp(source, - flow_up)
-            source = torch.from_numpy(image2_warp).permute(2, 0, 1).unsqueeze(0).cuda()
+            image2_warp = warp(source, - flow_up)
+            source = image2_warp
+            image2_warp = image2_warp[0].permute(1,2,0).cpu().numpy()
+
+            # convert to opencv format for saving
+            image2_warp = (image2_warp).astype(np.uint8)
+            image2_warp = cv2.resize(image2_warp, (w, h))
+            image2_warp = cv2.cvtColor(image2_warp, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(os.path.join(savepath, str(i+1) + '.png'), image2_warp)
+
+
+def warp_folder_cv2(source_path, flow_list):
+    savepath = 'result4'
+    check_path(savepath)
+    
+    with torch.no_grad():
+
+        source = load_image(source_path)
+        #source2 = source
+        #padder = InputPadder(source.shape)
+        #source, source2 = padder.pad(source, source2)
+        _, _, h, w = source.shape
+        source = source[0].permute(1,2,0).cpu().numpy()
+
+        for i in range(len(flow_list)):
+            flow_up = flow_list[i]
+            flow_up = flow_up[0].permute(1,2,0).cpu().numpy()
+            image2_warp = warp_cv2(source, - flow_up)
+            source = image2_warp
 
             # convert to opencv format for saving
             image2_warp = (image2_warp).astype(np.uint8)
@@ -134,7 +171,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='models/raft-things.pth', help="restore checkpoint")
-    parser.add_argument('--folderlist', default='demo-imgs', help="dataset for evaluation")
+    parser.add_argument('--folderlist', default='demo-Cat', help="dataset for evaluation")
     parser.add_argument('--small', action='store_true', help='use small model')
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
     parser.add_argument('--alternate_corr', action='store_true', help='use efficent correlation implementation')
@@ -159,4 +196,5 @@ if __name__ == '__main__':
         flow_list.append(flow_up)
 
     source_path = pathlist[0][0]
-    warp_folder(source_path, flow_list)
+    #warp_folder(source_path, flow_list)
+    warp_folder_cv2(source_path, flow_list)

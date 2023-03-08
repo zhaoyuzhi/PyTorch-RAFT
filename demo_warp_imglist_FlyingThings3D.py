@@ -65,10 +65,21 @@ def warp(x, flo):
     return output
 
 
-def demo_warp(img1, flo):
-    img2_warp = warp(img1, flo)
-    img2_warp = img2_warp[0].permute(1,2,0).cpu().numpy()
-    return img2_warp
+def warp_cv2(x, flo):
+    """
+    warp an image/tensor according to the optical flow
+    x: [H, W, C] image/tensor
+    flo: [H, W, 2] flow
+    """
+    # calculate mat
+    w = int(x.shape[1])
+    h = int(x.shape[0])
+    flo = np.float32(flo)
+    y_coords, x_coords = np.mgrid[0:h, 0:w]
+    coords = np.float32(np.dstack([x_coords, y_coords]))
+    pixel_map = coords + flo
+    output = cv2.remap(x, pixel_map, None, cv2.INTER_LINEAR)
+    return output
 
 
 def demo(args, model, imfile1, imfile2):
@@ -86,7 +97,34 @@ def demo(args, model, imfile1, imfile2):
         image1, image2 = padder.pad(image1, image2)
 
         flow_low, flow_up = model(image1, image2, iters=20, test_mode=True)
-        image2_warp = demo_warp(image1, flow_up)
+        image2_warp = warp(image1, flow_up)
+        image2_warp = image2_warp[0].permute(1,2,0).cpu().numpy()
+
+        # convert to opencv format for saving
+        image2_warp = (image2_warp).astype(np.uint8)
+        image2_warp = cv2.resize(image2_warp, (w, h))
+        image2_warp = cv2.cvtColor(image2_warp, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(savepath, image2_warp)
+        
+
+def demo_cv2(args, model, imfile1, imfile2):
+    with torch.no_grad():
+        
+        readpath1 = os.path.join(args.read_path, imfile1)
+        readpath2 = os.path.join(args.read_path, imfile2)
+        savepath = os.path.join(args.save_path, imfile1.replace('.', '_warp.'))
+        image1 = load_image(readpath1)
+        image2 = load_image(readpath2)
+        assert image1.shape == image2.shape
+        _, _, h, w = image1.shape
+
+        padder = InputPadder(image1.shape)
+        image1, image2 = padder.pad(image1, image2)
+
+        flow_low, flow_up = model(image1, image2, iters=20, test_mode=True)
+        image1 = image1[0].permute(1,2,0).cpu().numpy()
+        flow_up = flow_up[0].permute(1,2,0).cpu().numpy()
+        image2_warp = warp_cv2(image1, flow_up)
 
         # convert to opencv format for saving
         image2_warp = (image2_warp).astype(np.uint8)
@@ -151,5 +189,6 @@ if __name__ == '__main__':
 
     for source_path, target_path in pathlist:
         print(source_path, target_path)
-        demo(args, model, source_path, target_path)
+        #demo(args, model, source_path, target_path)
+        demo_cv2(args, model, source_path, target_path)
     

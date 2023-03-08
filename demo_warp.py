@@ -158,8 +158,8 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='models/raft-things.pth', help="restore checkpoint")
-    parser.add_argument('--path1', default='demo-frames/frame_0016.png', help="dataset for evaluation")
-    parser.add_argument('--path2', default='demo-frames/frame_0017.png', help="dataset for evaluation")
+    parser.add_argument('--path1', default='demo-Game/frame_0016.png', help="dataset for evaluation")
+    parser.add_argument('--path2', default='demo-Game/frame_0017.png', help="dataset for evaluation")
     parser.add_argument('--small', action='store_true', help='use small model')
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
     parser.add_argument('--alternate_corr', action='store_true', help='use efficent correlation implementation')

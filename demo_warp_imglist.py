@@ -66,10 +66,21 @@ def warp(x, flo):
     return output
 
 
-def demo_warp(img1, flo):
-    img2_warp = warp(img1, flo)
-    img2_warp = img2_warp[0].permute(1,2,0).cpu().numpy()
-    return img2_warp
+def warp_cv2(x, flo):
+    """
+    warp an image/tensor according to the optical flow
+    x: [H, W, C] image/tensor
+    flo: [H, W, 2] flow
+    """
+    # calculate mat
+    w = int(x.shape[1])
+    h = int(x.shape[0])
+    flo = np.float32(flo)
+    y_coords, x_coords = np.mgrid[0:h, 0:w]
+    coords = np.float32(np.dstack([x_coords, y_coords]))
+    pixel_map = coords + flo
+    output = cv2.remap(x, pixel_map, None, cv2.INTER_LINEAR)
+    return output
 
 
 def demo(model, imfile1, imfile2):
@@ -84,7 +95,31 @@ def demo(model, imfile1, imfile2):
         image1, image2 = padder.pad(image1, image2)
 
         flow_low, flow_up = model(image1, image2, iters=20, test_mode=True)
-        image2_warp = demo_warp(image1, flow_up)
+        img2_warp = warp(image1, flow_up)
+        img2_warp = img2_warp[0].permute(1,2,0).cpu().numpy()
+
+        # convert to opencv format for saving
+        image2_warp = (image2_warp).astype(np.uint8)
+        image2_warp = cv2.resize(image2_warp, (w, h))
+        image2_warp = cv2.cvtColor(image2_warp, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(imfile2.replace('.', '_warp.'), image2_warp)
+
+
+def demo_cv2(model, imfile1, imfile2):
+    with torch.no_grad():
+
+        image1 = load_image(imfile1)
+        image2 = load_image(imfile2)
+        assert image1.shape == image2.shape
+        _, _, h, w = image1.shape
+
+        padder = InputPadder(image1.shape)
+        image1, image2 = padder.pad(image1, image2)
+
+        flow_low, flow_up = model(image1, image2, iters=20, test_mode=True)
+        image1 = image1[0].permute(1,2,0).cpu().numpy()
+        flow_up = flow_up[0].permute(1,2,0).cpu().numpy()
+        image2_warp = warp_cv2(image1, flow_up)
 
         # convert to opencv format for saving
         image2_warp = (image2_warp).astype(np.uint8)
@@ -97,7 +132,7 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='models/raft-things.pth', help="restore checkpoint")
-    parser.add_argument('--pathlist', default=[['demo-frames/frame_0016.png', 'demo-frames/frame_0017.png'], ['demo-frames/frame_0017.png', 'demo-frames/frame_0018.png'], ['demo-frames/frame_0018.png', 'demo-frames/frame_0019.png'], ['demo-frames/frame_0019.png', 'demo-frames/frame_0020.png'], ['demo-frames/frame_0020.png', 'demo-frames/frame_0021.png'], ['demo-frames/frame_0021.png', 'demo-frames/frame_0022.png'], ['demo-frames/frame_0022.png', 'demo-frames/frame_0023.png'], ['demo-frames/frame_0023.png', 'demo-frames/frame_0024.png'], ['demo-frames/frame_0024.png', 'demo-frames/frame_0025.png']], help="dataset for evaluation")
+    parser.add_argument('--pathlist', default=[['demo-Game/frame_0016.png', 'demo-Game/frame_0017.png'], ['demo-Game/frame_0017.png', 'demo-Game/frame_0018.png']], help="dataset for evaluation")
     parser.add_argument('--small', action='store_true', help='use small model')
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
     parser.add_argument('--alternate_corr', action='store_true', help='use efficent correlation implementation')
