@@ -28,26 +28,41 @@ or downloaded from [google drive](https://drive.google.com/drive/folders/1sWDsfu
 
 ## Demos
 
+### Official demo
+
 You can demo a trained model on a sequence of frames:
 ```Shell
 python demo.py --model=models/raft-things.pth --path=demo-frames
 ```
 
-The default mode is **forward warping**, which is implemented by the following code:
+### Warp demo
+
+1. The default mode is **forward warping**, which is implemented by the following code:
 ```bash
 python demo_warp.py --model=models/raft-things.pth --path1=demo-frames/frame_0016.png --path2=demo-frames/frame_0017.png
 ```
 (i.e., it warps the PATH1 image to the position of PATH2 image)
 
-BTW, if we want to implement **backward warping**, simply changing PATH1 and PATH2 as:
+2. if you want to implement **backward warping**, simply changing PATH1 and PATH2 as:
 ```bash
 python demo_warp.py --model=models/raft-things.pth --path1=demo-frames/frame_0017.png --path2=demo-frames/frame_0016.png
 ```
 (i.e., the source image is from PATH1)
 
-If you have a bunch of image pairs to warp, run the following code:
+3. If you have a bunch of image pairs to warp, run the following code:
 ```bash
 python demo_warp_imglist.py
+```
+(a special sample is demo_warp_imglist_FlyingThings3D.py)
+
+4. If you have a folder (a series of images in it) to warp frame by frame, run the following code:
+```bash
+python demo_warp_folder.py
+```
+
+5. if you want to warp the first frame using optical flows from a series of images, run the following code:
+```bash
+python demo_warp_folder_firstframe.py
 ```
 
 ## Required Data
