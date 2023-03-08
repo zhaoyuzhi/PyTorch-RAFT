@@ -18,6 +18,15 @@ from utils.utils import InputPadder
 
 DEVICE = 'cuda'
 
+def get_files(path):
+    # read a folder, return the complete path
+    ret = []
+    for root, dirs, files in os.walk(path):
+        for filespath in files:
+            ret.append(os.path.join(root, filespath))
+    return ret
+
+
 def create_raft(args):
     model = torch.nn.DataParallel(RAFT(args))
     model.load_state_dict(torch.load(args.model))
@@ -84,7 +93,7 @@ def demo(model, imfile1, imfile2):
         image1, image2 = padder.pad(image1, image2)
 
         flow_low, flow_up = model(image1, image2, iters=20, test_mode=True)
-        image2_warp = demo_warp(image1, flow_up)
+        image2_warp = demo_warp(image1, image2, flow_up)
 
         # convert to opencv format for saving
         image2_warp = (image2_warp).astype(np.uint8)
@@ -97,14 +106,24 @@ if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='models/raft-things.pth', help="restore checkpoint")
-    parser.add_argument('--pathlist', default=[['demo-frames/frame_0016.png', 'demo-frames/frame_0017.png'], ['demo-frames/frame_0017.png', 'demo-frames/frame_0018.png'], ['demo-frames/frame_0018.png', 'demo-frames/frame_0019.png'], ['demo-frames/frame_0019.png', 'demo-frames/frame_0020.png'], ['demo-frames/frame_0020.png', 'demo-frames/frame_0021.png'], ['demo-frames/frame_0021.png', 'demo-frames/frame_0022.png'], ['demo-frames/frame_0022.png', 'demo-frames/frame_0023.png'], ['demo-frames/frame_0023.png', 'demo-frames/frame_0024.png'], ['demo-frames/frame_0024.png', 'demo-frames/frame_0025.png']], help="dataset for evaluation")
+    parser.add_argument('--folderlist', default='demo-YogaHut2', help="dataset for evaluation")
     parser.add_argument('--small', action='store_true', help='use small model')
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
     parser.add_argument('--alternate_corr', action='store_true', help='use efficent correlation implementation')
     args = parser.parse_args()
 
+    # build pathlist for RAFT to compute optical flows and warp
+    folderlist = get_files(args.folderlist)
+    sorted(folderlist)
+    pathlist = []
+    for i in range(len(folderlist)-1):
+        prev = folderlist[i]
+        next = folderlist[i+1]
+        pathlist.append([prev, next])
+    
+    # create model and perform warpping
     model = create_raft(args)
 
-    for source_path, target_path in args.pathlist:
+    for source_path, target_path in pathlist:
         print(source_path, target_path)
         demo(model, source_path, target_path)

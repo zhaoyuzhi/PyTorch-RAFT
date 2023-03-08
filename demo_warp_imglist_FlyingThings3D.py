@@ -27,7 +27,6 @@ def create_raft(args):
     model.eval()
     return model
 
-
 def load_image(imfile):
     img = np.array(Image.open(imfile)).astype(np.uint8)
     img = torch.from_numpy(img).permute(2, 0, 1).float()
@@ -72,11 +71,14 @@ def demo_warp(img1, flo):
     return img2_warp
 
 
-def demo(model, imfile1, imfile2):
+def demo(args, model, imfile1, imfile2):
     with torch.no_grad():
-
-        image1 = load_image(imfile1)
-        image2 = load_image(imfile2)
+        
+        readpath1 = os.path.join(args.read_path, imfile1)
+        readpath2 = os.path.join(args.read_path, imfile2)
+        savepath = os.path.join(args.save_path, imfile1.replace('.', '_warp.'))
+        image1 = load_image(readpath1)
+        image2 = load_image(readpath2)
         assert image1.shape == image2.shape
         _, _, h, w = image1.shape
 
@@ -90,21 +92,64 @@ def demo(model, imfile1, imfile2):
         image2_warp = (image2_warp).astype(np.uint8)
         image2_warp = cv2.resize(image2_warp, (w, h))
         image2_warp = cv2.cvtColor(image2_warp, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(imfile2.replace('.', '_warp.'), image2_warp)
+        cv2.imwrite(savepath, image2_warp)
 
+
+# read a txt expect EOF
+def text_readlines(filename):
+    # try to read a txt file and return a list.Return [] if there was a mistake.
+    try:
+        file = open(filename, 'r')
+    except IOError:
+        error = []
+        return error
+    content = file.readlines()
+    # This for loop deletes the EOF (like \n)
+    for i in range(len(content)):
+        content[i] = content[i][:len(content[i]) - 1]
+    file.close()
+    return content
+
+
+# multi-layer folder
+def check_path(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+        
 
 if __name__ == '__main__':
     
     parser = argparse.ArgumentParser()
     parser.add_argument('--model', default='models/raft-things.pth', help="restore checkpoint")
-    parser.add_argument('--pathlist', default=[['demo-frames/frame_0016.png', 'demo-frames/frame_0017.png'], ['demo-frames/frame_0017.png', 'demo-frames/frame_0018.png'], ['demo-frames/frame_0018.png', 'demo-frames/frame_0019.png'], ['demo-frames/frame_0019.png', 'demo-frames/frame_0020.png'], ['demo-frames/frame_0020.png', 'demo-frames/frame_0021.png'], ['demo-frames/frame_0021.png', 'demo-frames/frame_0022.png'], ['demo-frames/frame_0022.png', 'demo-frames/frame_0023.png'], ['demo-frames/frame_0023.png', 'demo-frames/frame_0024.png'], ['demo-frames/frame_0024.png', 'demo-frames/frame_0025.png']], help="dataset for evaluation")
+    parser.add_argument('--txt_path', default='txt/FlyingThings3D_subset_train_split.txt', help="image name list")
+    parser.add_argument('--read_path', default='F:\\FlyingThings3D_subset\\train\\image_clean\\left', help="path including all input frames")
+    parser.add_argument('--save_path', default='F:\\FlyingThings3D_subset\\train\\image_clean\\left_warp', help="path for saving frames")
     parser.add_argument('--small', action='store_true', help='use small model')
     parser.add_argument('--mixed_precision', action='store_true', help='use mixed precision')
     parser.add_argument('--alternate_corr', action='store_true', help='use efficent correlation implementation')
     args = parser.parse_args()
 
+    # build pathlist for RAFT to compute optical flows and warp
+    split_image_list = text_readlines(args.txt_path)
+    pathlist = []
+    for i in range(len(split_image_list)):
+        cur_split = split_image_list[i]
+        cur_split = cur_split.split(' ')
+        print(cur_split)
+        for j in range(len(cur_split)-1):
+            temp_list = []
+            prev = cur_split[j]
+            next = cur_split[j+1]
+            temp_list.append(prev)
+            temp_list.append(next)
+            pathlist.append(temp_list)
+
+    check_path(args.save_path)
+
+    # create model and perform warpping
     model = create_raft(args)
 
-    for source_path, target_path in args.pathlist:
+    for source_path, target_path in pathlist:
         print(source_path, target_path)
-        demo(model, source_path, target_path)
+        demo(args, model, source_path, target_path)
+    
